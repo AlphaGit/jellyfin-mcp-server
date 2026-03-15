@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "jellyfin": {
+      "type": "stdio",
+      "command": "uv",
+      "args": ["run", "python", "jellyfin_mcp.py"]
+    }
+  }
+}
