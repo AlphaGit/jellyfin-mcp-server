@@ -258,6 +258,7 @@ async def get_item_details(item_id: str) -> dict:
 async def browse_library(
     library_id: str | None = None,
     media_type: str | None = None,
+    artist_ids: str | None = None,
     sort_by: str = "SortName",
     sort_order: str = "Ascending",
     limit: int = 20,
@@ -268,6 +269,7 @@ async def browse_library(
     Args:
         library_id: Optional library ID to scope results.
         media_type: Optional type filter (Audio, MusicAlbum, MusicArtist, Movie, Series, Episode, Book).
+        artist_ids: Optional comma-separated artist IDs to filter by (e.g. for albums by a specific artist).
         sort_by: Sort field — SortName, DateCreated, CommunityRating, ProductionYear, Random, etc.
         sort_order: Ascending or Descending.
         limit: Max results (default 20).
@@ -285,6 +287,8 @@ async def browse_library(
         params["ParentId"] = library_id
     if media_type:
         params["IncludeItemTypes"] = media_type
+    if artist_ids:
+        params["ArtistIds"] = artist_ids
     data = await _get("/Items", params=params)
     return {
         "total_count": data.get("TotalRecordCount", 0),
@@ -350,14 +354,14 @@ async def list_playlists() -> list[dict]:
 @mcp.tool()
 async def create_playlist(
     name: str,
-    item_ids: list[str] | None = None,
+    item_ids: str | None = None,
     media_type: str = "Audio",
 ) -> dict:
     """Create a new playlist, optionally with initial items.
 
     Args:
         name: Playlist name.
-        item_ids: Optional list of item IDs to add initially.
+        item_ids: Optional comma-separated item IDs to add initially.
         media_type: Media type for the playlist — Audio, Video, etc. (default Audio).
     """
     user_id = await _get_user_id()
@@ -367,7 +371,7 @@ async def create_playlist(
         "MediaType": media_type,
     }
     if item_ids:
-        body["Ids"] = item_ids
+        body["Ids"] = [i.strip() for i in item_ids.split(",")]
     data = await _post("/Playlists", json=body)
     return {"id": data["Id"], "name": name}
 
@@ -405,27 +409,29 @@ async def get_playlist_items(
 @mcp.tool()
 async def modify_playlist(
     playlist_id: str,
-    add_item_ids: list[str] | None = None,
-    remove_item_ids: list[str] | None = None,
+    add_item_ids: str | None = None,
+    remove_item_ids: str | None = None,
 ) -> str:
     """Add and/or remove items from a playlist in a single operation.
 
     Args:
         playlist_id: The playlist's Jellyfin ID.
-        add_item_ids: Item IDs to add to the playlist.
-        remove_item_ids: Playlist-item IDs to remove (use playlist_item_id from get_playlist_items).
+        add_item_ids: Comma-separated item IDs to add to the playlist.
+        remove_item_ids: Comma-separated playlist-item IDs to remove (use playlist_item_id from get_playlist_items).
     """
     messages = []
     if add_item_ids:
+        ids = [i.strip() for i in add_item_ids.split(",")]
         await _post(f"/Playlists/{playlist_id}/Items", params={
-            "Ids": ",".join(add_item_ids),
+            "Ids": ",".join(ids),
         })
-        messages.append(f"Added {len(add_item_ids)} item(s).")
+        messages.append(f"Added {len(ids)} item(s).")
     if remove_item_ids:
+        ids = [i.strip() for i in remove_item_ids.split(",")]
         await _delete(f"/Playlists/{playlist_id}/Items", params={
-            "EntryIds": ",".join(remove_item_ids),
+            "EntryIds": ",".join(ids),
         })
-        messages.append(f"Removed {len(remove_item_ids)} item(s).")
+        messages.append(f"Removed {len(ids)} item(s).")
     return " ".join(messages) or "No changes requested."
 
 
