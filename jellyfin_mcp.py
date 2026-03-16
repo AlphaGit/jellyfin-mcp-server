@@ -1,5 +1,6 @@
 """Jellyfin MCP Server — curated tools for managing Jellyfin from Claude Code."""
 
+import asyncio
 import os
 from pathlib import Path
 from typing import Any
@@ -122,21 +123,19 @@ def _summarize_item(item: dict) -> dict:
         summary["series"] = series
     if sn := item.get("ParentIndexNumber"):
         summary["season"] = sn
-    if ep := item.get("IndexNumber"):
-        summary["episode"] = ep
-    if track := item.get("IndexNumber"):
+    if idx := item.get("IndexNumber"):
         if item.get("Type") == "Audio":
-            summary["track"] = track
+            summary["track"] = idx
+        else:
+            summary["episode"] = idx
     if ticks := item.get("RunTimeTicks"):
         summary["duration_seconds"] = round(ticks / 10_000_000)
     if overview := item.get("Overview"):
         summary["overview"] = overview[:300] + "..." if len(overview) > 300 else overview
     if da := item.get("DateCreated"):
         summary["date_added"] = da
-    if count := item.get("ChildCount"):
+    if (count := item.get("ChildCount")) and item.get("Type") != "Playlist":
         summary["child_count"] = count
-    if item.get("Type") == "Playlist":
-        summary["item_count"] = item.get("ChildCount", 0)
 
     return summary
 
@@ -343,12 +342,22 @@ async def get_similar_items(item_id: str, limit: int = 10) -> list[dict]:
 @mcp.tool()
 async def list_playlists() -> list[dict]:
     """List all playlists on the server."""
+    user_id = await _get_user_id()
     data = await _get("/Items", params={
         "IncludeItemTypes": "Playlist",
         "Recursive": True,
-        "Fields": "ChildCount",
     })
-    return _summarize_items(data.get("Items", []))
+    playlists = _summarize_items(data.get("Items", []))
+
+    async def _fetch_count(pl: dict) -> None:
+        count_data = await _get(f"/Playlists/{pl['id']}/Items", params={
+            "UserId": user_id,
+            "Limit": 0,
+        })
+        pl["item_count"] = count_data.get("TotalRecordCount", 0)
+
+    await asyncio.gather(*[_fetch_count(pl) for pl in playlists])
+    return playlists
 
 
 @mcp.tool()
@@ -422,8 +431,10 @@ async def modify_playlist(
     messages = []
     if add_item_ids:
         ids = [i.strip() for i in add_item_ids.split(",")]
+        user_id = await _get_user_id()
         await _post(f"/Playlists/{playlist_id}/Items", params={
             "Ids": ",".join(ids),
+            "UserId": user_id,
         })
         messages.append(f"Added {len(ids)} item(s).")
     if remove_item_ids:
@@ -542,7 +553,7 @@ async def server_status(include: str = "info") -> dict:
                 "date": e.get("Date", ""),
                 "type": e.get("Type", ""),
                 "overview": e.get("Overview", e.get("ShortOverview", "")),
-                "user": e.get("UserPrimaryImageTag", ""),
+                "user": e.get("UserName", ""),
             }
             for e in log.get("Items", [])
         ]

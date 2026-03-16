@@ -30,6 +30,16 @@ An MCP (Model Context Protocol) server that exposes Jellyfin media server manage
 | `run_scheduled_task` | Trigger a scheduled task to run immediately |
 | `server_status` | Get server info, active sessions, scheduled tasks, and activity log |
 
+## Testing
+
+After making code changes, run the relevant impacted test specs against the live server to verify correctness. Test specs are in `tests/` and organized by tool category:
+
+- `tests/test_01_libraries.spec.md` — library listing and scanning
+- `tests/test_02_search_browse.spec.md` — search, browse, details, recent, similar
+- `tests/test_03_playlists.spec.md` — playlist CRUD and modification
+- `tests/test_04_scheduled_tasks.spec.md` — scheduled task listing and triggering
+- `tests/test_05_server_status.spec.md` — server status sections
+
 ## Authentication
 
 This server uses API key authentication (not user tokens). The `JELLYFIN_USERNAME` is resolved to a user ID at startup via the `/Users` endpoint, which is needed for user-scoped operations like playlists.
