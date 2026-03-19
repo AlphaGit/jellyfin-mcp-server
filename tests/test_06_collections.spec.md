@@ -14,14 +14,16 @@ Tools under test: `create_collection`, `list_collections`, `get_collection_items
 - **Cleanup** delete the collection via `delete_collection(collection_id=<id>)`
 
 ### Test: create a collection with initial items
-- **Given** I obtain two valid movie item IDs via `search_media(query="the", media_type="Movie", limit=2)`
+- **Given** I call `search_media(query="the", media_type="Movie", limit=2)` → results
+- **And** results contain at least 2 items (skip test with message "insufficient media" if not)
 - **When** I call `create_collection(name="[TEST] With Items", item_ids="<id1>,<id2>")`
 - **Then** the result has `id` and `name`
 - **And** calling `get_collection_items(collection_id=<id>)` returns `total_count` of 2
 - **Cleanup** delete the collection
 
 ### Test: create a collection with a single initial item
-- **Given** one valid movie item ID
+- **Given** I call `search_media(query="the", media_type="Movie", limit=1)` → results
+- **And** results contain at least 1 item (skip test with message "insufficient media" if not)
 - **When** I call `create_collection(name="[TEST] Single Item", item_ids="<id1>")`
 - **Then** the collection is created successfully
 - **And** `get_collection_items` shows 1 item
@@ -56,7 +58,9 @@ Tools under test: `create_collection`, `list_collections`, `get_collection_items
 - **Then** no entry has the deleted collection's `id`
 
 ### Test: collection shows accurate item_count
-- **Given** I create a collection with 2 items
+- **Given** I call `search_media(query="the", media_type="Movie", limit=2)` → results
+- **And** results contain at least 2 items (skip test with message "insufficient media" if not)
+- **And** I create a collection with those 2 items
 - **When** I find it in `list_collections()`
 - **Then** it has `item_count` equal to 2
 - **Cleanup** delete the collection
@@ -66,7 +70,9 @@ Tools under test: `create_collection`, `list_collections`, `get_collection_items
 ## Suite: get_collection_items
 
 ### Test: returns items from a populated collection
-- **Given** I create a collection with 2 movie items
+- **Given** I call `search_media(query="the", media_type="Movie", limit=2)` → results
+- **And** results contain at least 2 items (skip test with message "insufficient media" if not)
+- **And** I create a collection with those 2 movie items
 - **When** I call `get_collection_items(collection_id=<id>)`
 - **Then** `total_count` is 2
 - **And** `items` has 2 entries
@@ -81,14 +87,18 @@ Tools under test: `create_collection`, `list_collections`, `get_collection_items
 - **Cleanup** delete the collection
 
 ### Test: pagination with limit
-- **Given** a collection with 3 items
+- **Given** I call `search_media(query="the", media_type="Movie", limit=3)` → results
+- **And** results contain at least 3 items (skip test with message "insufficient media" if not)
+- **And** I create a collection with those 3 items
 - **When** I call `get_collection_items(collection_id=<id>, limit=2)`
 - **Then** `items` has 2 entries
 - **And** `total_count` is 3
 - **Cleanup** delete the collection
 
 ### Test: pagination with start_index
-- **Given** a collection with 3 items
+- **Given** I call `search_media(query="the", media_type="Movie", limit=3)` → results
+- **And** results contain at least 3 items (skip test with message "insufficient media" if not)
+- **And** I create a collection with those 3 items
 - **When** I call `get_collection_items(collection_id=<id>, limit=2, start_index=0)` → page1
 - **And** I call `get_collection_items(collection_id=<id>, limit=2, start_index=2)` → page2
 - **Then** page1 has 2 items, page2 has 1 item
@@ -100,35 +110,45 @@ Tools under test: `create_collection`, `list_collections`, `get_collection_items
 ## Suite: modify_collection
 
 ### Test: add items to an empty collection
-- **Given** an empty collection and 2 valid movie item IDs
+- **Given** I call `search_media(query="the", media_type="Movie", limit=2)` → results
+- **And** results contain at least 2 items (skip test with message "insufficient media" if not)
+- **And** an empty collection
 - **When** I call `modify_collection(collection_id=<id>, add_item_ids="<id1>,<id2>")`
 - **Then** the result contains `"Added 2 item(s)."`
 - **And** `get_collection_items` shows 2 items
 - **Cleanup** delete the collection
 
 ### Test: add a single item
-- **Given** an empty collection and 1 valid movie item ID
+- **Given** I call `search_media(query="the", media_type="Movie", limit=1)` → results
+- **And** results contain at least 1 item (skip test with message "insufficient media" if not)
+- **And** an empty collection
 - **When** I call `modify_collection(collection_id=<id>, add_item_ids="<id1>")`
 - **Then** the result contains `"Added 1 item(s)."`
 - **And** `get_collection_items` shows 1 item
 - **Cleanup** delete the collection
 
 ### Test: remove items from a collection
-- **Given** a collection with 2 items
+- **Given** I call `search_media(query="the", media_type="Movie", limit=2)` → results
+- **And** results contain at least 2 items (skip test with message "insufficient media" if not)
+- **And** a collection seeded with those 2 items
 - **When** I call `modify_collection(collection_id=<id>, remove_item_ids="<id1>")`
 - **Then** the result contains `"Removed 1 item(s)."`
 - **And** `get_collection_items` shows 1 item remaining
 - **Cleanup** delete the collection
 
 ### Test: remove all items from a collection
-- **Given** a collection with 2 items, with IDs obtained via `get_collection_items`
+- **Given** I call `search_media(query="the", media_type="Movie", limit=2)` → results
+- **And** results contain at least 2 items (skip test with message "insufficient media" if not)
+- **And** a collection seeded with those 2 items, with IDs confirmed via `get_collection_items`
 - **When** I call `modify_collection(collection_id=<id>, remove_item_ids="<id1>,<id2>")`
 - **Then** the result contains `"Removed 2 item(s)."`
 - **And** `get_collection_items` shows 0 items
 - **Cleanup** delete the collection
 
 ### Test: add and remove in a single call
-- **Given** a collection with 1 item (item A), and a new item ID (item B)
+- **Given** I call `search_media(query="the", media_type="Movie", limit=2)` → results
+- **And** results contain at least 2 items (skip test with message "insufficient media" if not)
+- **And** a collection seeded with item A (first result), and item B ID (second result) ready to add
 - **When** I call `modify_collection(collection_id=<id>, add_item_ids="<B_id>", remove_item_ids="<A_id>")`
 - **Then** the result contains both `"Added 1 item(s)."` and `"Removed 1 item(s)."`
 - **And** `get_collection_items` shows exactly 1 item (item B, not item A)
@@ -151,7 +171,9 @@ Tools under test: `create_collection`, `list_collections`, `get_collection_items
 - **And** the collection no longer appears in `list_collections()`
 
 ### Test: delete a collection with items
-- **Given** I create a collection with 2 items
+- **Given** I call `search_media(query="the", media_type="Movie", limit=2)` → results
+- **And** results contain at least 2 items (skip test with message "insufficient media" if not)
+- **And** I create a collection with those 2 items
 - **When** I call `delete_collection(collection_id=<id>)`
 - **Then** the deletion succeeds
 - **And** the collection no longer appears in `list_collections()`

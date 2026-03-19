@@ -144,6 +144,10 @@ def _summarize_items(items: list[dict]) -> list[dict]:
     return [_summarize_item(i) for i in items]
 
 
+def _parse_csv_ids(raw: str) -> list[str]:
+    return [s for s in (i.strip() for i in raw.split(",")) if s]
+
+
 # ---------------------------------------------------------------------------
 # Tools — Library Rescans
 # ---------------------------------------------------------------------------
@@ -471,13 +475,16 @@ async def list_collections() -> list[dict]:
     })
     collections = _summarize_items(data.get("Items", []))
 
+    semaphore = asyncio.Semaphore(10)
+
     async def _fetch_count(col: dict) -> None:
-        count_data = await _get("/Items", params={
-            "ParentId": col["id"],
-            "Recursive": True,
-            "Limit": 0,
-        })
-        col["item_count"] = count_data.get("TotalRecordCount", 0)
+        async with semaphore:
+            count_data = await _get("/Items", params={
+                "ParentId": col["id"],
+                "Recursive": True,
+                "Limit": 0,
+            })
+            col["item_count"] = count_data.get("TotalRecordCount", 0)
 
     await asyncio.gather(*[_fetch_count(col) for col in collections])
     return collections
@@ -496,7 +503,9 @@ async def create_collection(
     """
     params: dict[str, Any] = {"name": name}
     if item_ids:
-        params["ids"] = ",".join(i.strip() for i in item_ids.split(","))
+        ids = _parse_csv_ids(item_ids)
+        if ids:
+            params["ids"] = ",".join(ids)
     data = await _post("/Collections", params=params)
     return {"id": data["Id"], "name": name}
 
@@ -542,13 +551,15 @@ async def modify_collection(
     """
     messages = []
     if add_item_ids:
-        ids = [i.strip() for i in add_item_ids.split(",")]
-        await _post(f"/Collections/{collection_id}/Items", params={"ids": ",".join(ids)})
-        messages.append(f"Added {len(ids)} item(s).")
+        ids = _parse_csv_ids(add_item_ids)
+        if ids:
+            await _post(f"/Collections/{collection_id}/Items", params={"ids": ",".join(ids)})
+            messages.append(f"Added {len(ids)} item(s).")
     if remove_item_ids:
-        ids = [i.strip() for i in remove_item_ids.split(",")]
-        await _delete(f"/Collections/{collection_id}/Items", params={"ids": ",".join(ids)})
-        messages.append(f"Removed {len(ids)} item(s).")
+        ids = _parse_csv_ids(remove_item_ids)
+        if ids:
+            await _delete(f"/Collections/{collection_id}/Items", params={"ids": ",".join(ids)})
+            messages.append(f"Removed {len(ids)} item(s).")
     return " ".join(messages) or "No changes requested."
 
 
