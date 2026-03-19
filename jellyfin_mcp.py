@@ -458,6 +458,112 @@ async def delete_playlist(playlist_id: str) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Tools — Collection Management
+# ---------------------------------------------------------------------------
+
+
+@mcp.tool()
+async def list_collections() -> list[dict]:
+    """List all collections (box sets) on the server."""
+    data = await _get("/Items", params={
+        "IncludeItemTypes": "BoxSet",
+        "Recursive": True,
+    })
+    collections = _summarize_items(data.get("Items", []))
+
+    async def _fetch_count(col: dict) -> None:
+        count_data = await _get("/Items", params={
+            "ParentId": col["id"],
+            "Recursive": True,
+            "Limit": 0,
+        })
+        col["item_count"] = count_data.get("TotalRecordCount", 0)
+
+    await asyncio.gather(*[_fetch_count(col) for col in collections])
+    return collections
+
+
+@mcp.tool()
+async def create_collection(
+    name: str,
+    item_ids: str | None = None,
+) -> dict:
+    """Create a new collection, optionally with initial items.
+
+    Args:
+        name: Collection name.
+        item_ids: Optional comma-separated item IDs to add initially.
+    """
+    params: dict[str, Any] = {"name": name}
+    if item_ids:
+        params["ids"] = ",".join(i.strip() for i in item_ids.split(","))
+    data = await _post("/Collections", params=params)
+    return {"id": data["Id"], "name": name}
+
+
+@mcp.tool()
+async def get_collection_items(
+    collection_id: str,
+    limit: int = 50,
+    start_index: int = 0,
+) -> dict:
+    """Get items in a collection.
+
+    Args:
+        collection_id: The collection's Jellyfin ID.
+        limit: Max results (default 50).
+        start_index: Offset for pagination.
+    """
+    data = await _get("/Items", params={
+        "ParentId": collection_id,
+        "Recursive": True,
+        "Limit": limit,
+        "StartIndex": start_index,
+        "Fields": "Overview,DateCreated",
+    })
+    return {
+        "total_count": data.get("TotalRecordCount", 0),
+        "items": _summarize_items(data.get("Items", [])),
+    }
+
+
+@mcp.tool()
+async def modify_collection(
+    collection_id: str,
+    add_item_ids: str | None = None,
+    remove_item_ids: str | None = None,
+) -> str:
+    """Add and/or remove items from a collection in a single operation.
+
+    Args:
+        collection_id: The collection's Jellyfin ID.
+        add_item_ids: Comma-separated item IDs to add.
+        remove_item_ids: Comma-separated item IDs to remove.
+    """
+    messages = []
+    if add_item_ids:
+        ids = [i.strip() for i in add_item_ids.split(",")]
+        await _post(f"/Collections/{collection_id}/Items", params={"ids": ",".join(ids)})
+        messages.append(f"Added {len(ids)} item(s).")
+    if remove_item_ids:
+        ids = [i.strip() for i in remove_item_ids.split(",")]
+        await _delete(f"/Collections/{collection_id}/Items", params={"ids": ",".join(ids)})
+        messages.append(f"Removed {len(ids)} item(s).")
+    return " ".join(messages) or "No changes requested."
+
+
+@mcp.tool()
+async def delete_collection(collection_id: str) -> str:
+    """Permanently delete a collection. Media files are not affected.
+
+    Args:
+        collection_id: The collection's Jellyfin ID.
+    """
+    await _delete(f"/Items/{collection_id}")
+    return f"Collection {collection_id} deleted."
+
+
+# ---------------------------------------------------------------------------
 # Tools — Scheduled Tasks
 # ---------------------------------------------------------------------------
 
