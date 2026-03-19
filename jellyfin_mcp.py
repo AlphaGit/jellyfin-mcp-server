@@ -507,6 +507,8 @@ async def create_collection(
         if ids:
             params["ids"] = ",".join(ids)
     data = await _post("/Collections", params=params)
+    if not data:
+        raise RuntimeError("Collection creation returned no data")
     return {"id": data["Id"], "name": name}
 
 
